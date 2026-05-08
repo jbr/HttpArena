@@ -9,7 +9,7 @@ mod static_preload;
 use crate::{
     handlers::{
         async_db, baseline_any, baseline_get, crud_create, crud_list, crud_read, crud_update,
-        json_handler, pipeline, upload, ws_echo,
+        fortunes, json_handler, pipeline, upload, ws_echo,
     },
     runtime::bind_reuseport,
     state::{AppState, SharedState, build_pg_pool},
@@ -46,6 +46,7 @@ fn build_handler(static_files: StaticPreload) -> impl Handler {
             .post("/upload", upload)
             .get("/static/*", static_files)
             .get("/async-db", async_db)
+            .get("/fortunes", fortunes)
             .get("/crud/items", crud_list)
             .post("/crud/items", crud_create)
             .get("/crud/items/:id", crud_read)

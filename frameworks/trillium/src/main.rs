@@ -7,7 +7,7 @@ mod state;
 use crate::{
     handlers::{
         async_db, baseline_any, baseline_get, crud_create, crud_list, crud_read, crud_update,
-        json_handler, pipeline, upload, ws_echo,
+        fortunes, json_handler, pipeline, upload, ws_echo,
     },
     state::AppState,
 };
@@ -32,6 +32,7 @@ fn build_handler() -> impl Handler {
             .post("/upload", upload)
             .get("/static/*", files(static_dir))
             .get("/async-db", async_db)
+            .get("/fortunes", fortunes)
             .get("/crud/items", crud_list)
             .post("/crud/items", crud_create)
             .get("/crud/items/:id", crud_read)

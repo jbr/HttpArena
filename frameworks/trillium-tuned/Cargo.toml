@@ -11,6 +11,8 @@ trillium-rustls = "0.11"
 trillium-quinn = "0.1"
 trillium-websockets = "0.8"
 trillium-compression = "0.2"
+trillium-askama = "0.4"
+askama = "0.15"
 trillium-logger = "0.4"
 
 swansong = "0.3.4"
