@@ -407,12 +407,11 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
 name = "colored"
-version = "2.2.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
+checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -942,10 +941,6 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
- "allocator-api2",
-]
 
 [[package]]
 name = "hashbrown"
@@ -1005,7 +1000,7 @@ dependencies = [
  "sonic-rs",
  "swansong",
  "tokio-postgres",
- "trillium 1.1.0",
+ "trillium",
  "trillium-askama",
  "trillium-compression",
  "trillium-logger",
@@ -2250,9 +2245,9 @@ checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
 name = "size"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fed904c7fb2856d868b92464fc8fa597fce366edea1a9cbfaa8cb5fe080bd6d"
+checksum = "1b6709c7b6754dca1311b3c73e79fcce40dd414c782c66d88e8823030093b02b"
 
 [[package]]
 name = "slab"
@@ -2346,17 +2341,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stopper"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88bc3cb56a90ab1d29db096b9a448424e2c80cb57b4598a392b01bb4e9f5e021"
-dependencies = [
- "event-listener",
- "futures-lite",
- "pin-project-lite",
-]
 
 [[package]]
 name = "str-buf"
@@ -2656,77 +2640,36 @@ dependencies = [
 
 [[package]]
 name = "trillium"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84b5b14b3b2dda42a660fd7476a00f25c7565c4f1dc63b4322a7855a1c5384f"
-dependencies = [
- "async-trait",
- "log",
- "trillium-http 0.3.17",
-]
-
-[[package]]
-name = "trillium"
 version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42555814b00d06d4e3ea4dc1ee1929cfab2d776512b8850a907da51393ef9bc7"
 dependencies = [
  "futures-lite",
  "log",
- "trillium-http 1.2.0",
- "trillium-macros 0.1.0",
+ "trillium-http",
+ "trillium-macros",
 ]
 
 [[package]]
 name = "trillium-askama"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd10fc7061bd0e314d9065175bf7f40676af9b7652841e0fcb8f4e803c19c1b"
 dependencies = [
  "askama",
  "log",
- "trillium 1.1.0",
+ "trillium",
 ]
 
 [[package]]
 name = "trillium-compression"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94bbdb555021d201e16c7f6cc8e974187304bef6a93e93173ea2e53f8f51d3d3"
+version = "0.3.0"
 dependencies = [
  "async-compression",
  "futures-lite",
  "log",
- "trillium 1.1.0",
-]
-
-[[package]]
-name = "trillium-http"
-version = "0.3.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd4c063660875422d9f85a334931963fc301a3ede9a5c39de7c968ab0801ce33"
-dependencies = [
- "encoding_rs",
- "futures-lite",
- "hashbrown 0.14.5",
- "httparse",
- "httpdate",
- "log",
- "memchr",
- "mime",
- "smallvec",
- "smartcow",
- "smartstring",
- "stopper",
- "thiserror 1.0.69",
- "trillium-macros 0.0.6",
+ "trillium",
 ]
 
 [[package]]
 name = "trillium-http"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0839041d8e319613bec2d04c0534a3801378866b1643d44b5ff820a828f21e5"
 dependencies = [
  "atomic-waker",
  "encoding_rs",
@@ -2747,39 +2690,26 @@ dependencies = [
  "swansong",
  "sync_wrapper",
  "thiserror 2.0.18",
- "trillium-macros 0.1.0",
+ "trillium-macros",
  "type-set",
 ]
 
 [[package]]
 name = "trillium-logger"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da5e9b6c08a27d991b4a9c73dd7276c6f181fd4dee7218723b0fbd7fca3a1659"
+version = "0.5.0"
 dependencies = [
  "colored",
  "log",
  "size",
  "time",
- "trillium 0.2.20",
-]
-
-[[package]]
-name = "trillium-macros"
-version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "916e37646d33632b88ca02d4b8c4e2e6376f2a89d9888de71b7d82c150ed1f6c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "trillium",
+ "trillium-http",
+ "url",
 ]
 
 [[package]]
 name = "trillium-macros"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3caa8c474e8cfacd96ca0692f57f932891543db2147beca4758a075a7d26a0b2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2789,8 +2719,6 @@ dependencies = [
 [[package]]
 name = "trillium-quinn"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3935766f08636bf455dc713cf645702fa139f169608858e2da76bd9e0377b59"
 dependencies = [
  "async-compat",
  "futures-lite",
@@ -2798,26 +2726,22 @@ dependencies = [
  "quinn",
  "rustls",
  "rustls-pemfile",
- "trillium-macros 0.1.0",
+ "trillium-macros",
  "trillium-server-common",
 ]
 
 [[package]]
 name = "trillium-router"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67c56f83644b5a88362f8b0ce76fdc9d58cec068794bfc0add81e86986096c7f"
 dependencies = [
  "log",
  "routefinder",
- "trillium 1.1.0",
+ "trillium",
 ]
 
 [[package]]
 name = "trillium-rustls"
 version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf428f82c0bcb0da509db3d4040d4ab921d3d2a6dd8796d128fb75639b00667"
 dependencies = [
  "futures-rustls",
  "log",
@@ -2830,8 +2754,6 @@ dependencies = [
 [[package]]
 name = "trillium-server-common"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f22c217fbc86faed25a782cea0cbb726d82a8cc486962d49c3bd6ecf124bb53c"
 dependencies = [
  "async-channel",
  "async_cell",
@@ -2842,16 +2764,14 @@ dependencies = [
  "pin-project-lite",
  "rlimit",
  "swansong",
- "trillium 1.1.0",
- "trillium-http 1.2.0",
+ "trillium",
+ "trillium-http",
  "url",
 ]
 
 [[package]]
 name = "trillium-static"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0a53adb5573d5effc5d7172cecfbfa4fb11c1f6ca9643d273c68419fd0077d3"
 dependencies = [
  "async-compat",
  "cfg-if",
@@ -2862,14 +2782,12 @@ dependencies = [
  "mime_guess",
  "relative-path",
  "tokio",
- "trillium 1.1.0",
+ "trillium",
 ]
 
 [[package]]
 name = "trillium-tokio"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b0d2e388eae1c568fb0ec5fe8d44253cbd338aa56139da9bb5663b22de01e2d"
 dependencies = [
  "async-compat",
  "log",
@@ -2877,17 +2795,15 @@ dependencies = [
  "signal-hook-tokio",
  "tokio",
  "tokio-stream",
- "trillium 1.1.0",
- "trillium-http 1.2.0",
- "trillium-macros 0.1.0",
+ "trillium",
+ "trillium-http",
+ "trillium-macros",
  "trillium-server-common",
 ]
 
 [[package]]
 name = "trillium-websockets"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb17b68fe3978322e93eada486eb4bac0ada89648def0e3a0655053dab249bd2"
 dependencies = [
  "async-tungstenite",
  "base64",
@@ -2898,8 +2814,8 @@ dependencies = [
  "sha-1",
  "swansong",
  "thiserror 2.0.18",
- "trillium 1.1.0",
- "trillium-http 1.2.0",
+ "trillium",
+ "trillium-http",
 ]
 
 [[package]]
@@ -3259,15 +3175,6 @@ name = "windows-sys"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
-dependencies = [
- "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.59.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
 ]
@@ -3727,3 +3634,15 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "trillium-caching-headers"
+version = "0.3.0"
+
+[[patch.unused]]
+name = "trillium-forwarding"
+version = "0.3.0"
+
+[[patch.unused]]
+name = "trillium-proxy"
+version = "0.7.0"

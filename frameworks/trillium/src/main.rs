@@ -16,7 +16,7 @@ use trillium_compression::Compression;
 use trillium_quinn::QuicConfig;
 use trillium_router::Router;
 use trillium_rustls::RustlsAcceptor;
-use trillium_static::files;
+use trillium_static::StaticFileHandler;
 use trillium_tokio::tokio;
 use trillium_websockets::websocket;
 
@@ -30,7 +30,11 @@ fn build_handler() -> impl Handler {
             .get("/baseline2", baseline_get)
             .get("/json/:count", json_handler)
             .post("/upload", upload)
-            .get("/static/*", files(static_dir))
+            .get(
+                "/static/*",
+                StaticFileHandler::new(static_dir)
+                    .with_precompressed_sidecars(&[("br", "br"), ("gz", "gzip")]),
+            )
             .get("/async-db", async_db)
             .get("/fortunes", fortunes)
             .get("/crud/items", crud_list)

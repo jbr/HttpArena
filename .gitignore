@@ -10,6 +10,8 @@ obj/
 bin/
 !frameworks/fletch/bin/
 target/
+frameworks/trillium/_trillium/
+frameworks/trillium-tuned/_trillium/
 frameworks/blitz/zig-linux-*
 frameworks/blitz/.zig-cache
 frameworks/fletch/.dart_tool/

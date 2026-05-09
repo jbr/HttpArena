@@ -2,7 +2,7 @@ services:
   proxy:
     build: ./proxy
     network_mode: host
-    cpuset: "0-19,64-83"
+    cpuset: "${PROXY_CPUSET:-0-19,64-83}"
     ulimits:
       memlock: -1
       nofile:
@@ -21,7 +21,7 @@ services:
       context: ../../
       dockerfile: frameworks/aspnet-minimal_nginx/Dockerfile
     network_mode: host
-    cpuset: "20-31,84-95"
+    cpuset: "${SERVER_CPUSET:-20-31,84-95}"
     ulimits:
       memlock: -1
       nofile:
