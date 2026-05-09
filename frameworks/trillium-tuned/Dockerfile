@@ -1,10 +1,13 @@
 FROM rust:1.94-bookworm AS build
 WORKDIR /app
 COPY Cargo.toml .
+COPY _trillium ./_trillium
 RUN mkdir src && echo "fn main() {}" > src/main.rs && \
     cargo build --release && \
     rm -rf src/ target/release/httparena-trillium-tuned* target/release/deps/httparena_trillium_tuned*
 COPY src ./src
+COPY templates ./templates
+COPY askama.toml .
 RUN RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 FROM debian:bookworm-slim

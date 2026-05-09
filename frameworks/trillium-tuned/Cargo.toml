@@ -10,10 +10,10 @@ trillium-router = "0.5"
 trillium-rustls = "0.11"
 trillium-quinn = "0.1"
 trillium-websockets = "0.8"
-trillium-compression = "0.2"
+trillium-compression = "0.3"
 trillium-askama = "0.4"
 askama = "0.15"
-trillium-logger = "0.4"
+trillium-logger = "0.5"
 
 swansong = "0.3.4"
 futures-lite = "2"
@@ -39,3 +39,21 @@ codegen-units = 1
 lto = "fat"
 panic = "abort"
 strip = true
+
+# Override every trillium-* registry dep (direct + transitive) with the
+# local clone staged at _trillium/ by scripts/stage-trillium.sh.
+# Keeps a single trillium build in the dep graph (no version skew between
+# our direct trillium and the trillium pulled in by trillium-compression).
+[patch.crates-io]
+trillium = { path = "_trillium/trillium" }
+trillium-tokio = { path = "_trillium/tokio" }
+trillium-router = { path = "_trillium/router" }
+trillium-rustls = { path = "_trillium/rustls" }
+trillium-quinn = { path = "_trillium/quinn" }
+trillium-websockets = { path = "_trillium/websockets" }
+trillium-compression = { path = "_trillium/compression" }
+trillium-askama = { path = "_trillium/askama" }
+trillium-logger = { path = "_trillium/logger" }
+trillium-http = { path = "_trillium/http" }
+trillium-server-common = { path = "_trillium/server-common" }
+trillium-macros = { path = "_trillium/macros" }

@@ -92,6 +92,10 @@ framework_start() {
         api-16) args+=(--memory=32g --memory-swap=32g) ;;
     esac
 
+    # Pass through framework-level env knobs if set on the host.
+    [ -n "${QUIC_THREADS:-}" ] && args+=(-e "QUIC_THREADS=$QUIC_THREADS")
+    [ -n "${WORKERS:-}" ]      && args+=(-e "WORKERS=$WORKERS")
+
     # Profile-declared CPU limit.
     if [ -n "$cpu_limit" ]; then
         if [[ "$cpu_limit" == *-* ]]; then
