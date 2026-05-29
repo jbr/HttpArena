@@ -17,7 +17,7 @@ use trillium_quinn::QuicConfig;
 use trillium_router::Router;
 use trillium_rustls::RustlsAcceptor;
 use trillium_static::StaticFileHandler;
-use trillium_tokio::tokio;
+use trillium_tokio::server;
 use trillium_websockets::websocket;
 
 fn build_handler() -> impl Handler {
@@ -32,8 +32,7 @@ fn build_handler() -> impl Handler {
             .post("/upload", upload)
             .get(
                 "/static/*",
-                StaticFileHandler::new(static_dir)
-                    .with_precompressed_sidecars(&[("br", "br"), ("gz", "gzip")]),
+                StaticFileHandler::new(static_dir).with_precompressed(),
             )
             .get("/async-db", async_db)
             .get("/fortunes", fortunes)
@@ -56,60 +55,36 @@ fn main() {
     let key =
         std::fs::read(std::env::var("TLS_KEY").unwrap_or_else(|_| "/certs/server.key".into())).ok();
 
+    let tls_port: u16 = std::env::var("TLS_PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8443);
+
     let http_config = trillium::HttpConfig::default().with_received_body_max_len(32 * 1024 * 1024);
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+    // Multi-listener (no reuseport): one shared work-stealing runtime serves every listener with a
+    // single initialized handler and shared state.
+    //   8080: h1 cleartext (also /ws and h2c-prior-knowledge)
+    //   8081: h1-only over TLS (ALPN http/1.1) — for json-tls
+    //   8443: h1 + h2 over TLS, plus h3 over QUIC (alt-svc h3=":8443" auto-pairs)
+    let mut builder = server()
+        .with_nodelay()
+        .with_http_config(http_config)
+        .with_shared_state(state)
+        .bind_tcp(8080)
+        .expect("bind 8080");
 
-    let swansong = swansong::Swansong::new();
+    if let (Some(cert), Some(key)) = (cert.as_deref(), key.as_deref()) {
+        builder = builder
+            .bind_tls(8081, RustlsAcceptor::from_single_cert_no_h2(cert, key))
+            .expect("bind 8081")
+            .bind_tls(tls_port, RustlsAcceptor::from_single_cert(cert, key))
+            .expect("bind TLS port")
+            .bind_quic(tls_port, QuicConfig::from_single_cert(cert, key))
+            .expect("bind QUIC");
+    } else {
+        log::warn!("TLS cert/key not found; only port 8080 is listening");
+    }
 
-    runtime.block_on(async move {
-        if let (Some(cert), Some(key)) = (cert.as_deref(), key.as_deref()) {
-            let tls_port: u16 = std::env::var("TLS_PORT")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(8443);
-
-            // 8081: h1 only over TLS (ALPN http/1.1) — for json-tls
-            trillium_tokio::config()
-                .with_port(8081)
-                .with_host("0.0.0.0")
-                .with_nodelay()
-                .with_swansong(swansong.clone())
-                .without_signals()
-                .with_http_config(http_config)
-                .with_shared_state(state.clone())
-                .with_acceptor(RustlsAcceptor::from_single_cert_no_h2(cert, key))
-                .spawn(build_handler());
-
-            // TLS_PORT (default 8443): h1 + h2 over TLS, plus h3 over QUIC
-            trillium_tokio::config()
-                .with_port(tls_port)
-                .with_host("0.0.0.0")
-                .with_nodelay()
-                .with_swansong(swansong.clone())
-                .without_signals()
-                .with_http_config(http_config)
-                .with_shared_state(state.clone())
-                .with_acceptor(RustlsAcceptor::from_single_cert(cert, key))
-                .with_quic(QuicConfig::from_single_cert(cert, key))
-                .spawn(build_handler());
-        } else {
-            log::warn!("TLS cert/key not found; only port 8080 is listening");
-        }
-
-        // 8080: h1 cleartext (also serves /ws and h2c-prior-knowledge); registers signal handlers
-        trillium_tokio::config()
-            .with_port(8080)
-            .with_host("0.0.0.0")
-            .with_nodelay()
-            .with_swansong(swansong.clone())
-            .with_http_config(http_config)
-            .with_shared_state(state.clone())
-            .spawn(build_handler());
-
-        swansong.await
-    });
+    builder.run(build_handler());
 }

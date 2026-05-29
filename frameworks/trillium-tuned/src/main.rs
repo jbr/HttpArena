@@ -2,7 +2,6 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod handlers;
-mod runtime;
 mod state;
 mod static_preload;
 
@@ -11,7 +10,6 @@ use crate::{
         async_db, baseline_any, baseline_get, crud_create, crud_list, crud_read, crud_update,
         fortunes, json_handler, pipeline, upload, ws_echo,
     },
-    runtime::bind_reuseport,
     state::{AppState, SharedState, build_pg_pool},
     static_preload::StaticPreload,
 };
@@ -21,7 +19,7 @@ use trillium_compression::Compression;
 use trillium_quinn::QuicConfig;
 use trillium_router::Router;
 use trillium_rustls::RustlsAcceptor;
-use trillium_tokio::tokio;
+use trillium_tokio::server;
 use trillium_websockets::websocket;
 
 fn tuned_http_config() -> trillium::HttpConfig {
@@ -55,165 +53,6 @@ fn build_handler(static_files: StaticPreload) -> impl Handler {
     )
 }
 
-struct WorkerInputs {
-    shared: SharedState,
-    static_files: StaticPreload,
-    cert: Option<Vec<u8>>,
-    key: Option<Vec<u8>>,
-    swansong: swansong::Swansong,
-    tls_port: u16,
-    workers: usize,
-}
-
-/// Per-worker current_thread runtime: TCP-only (h1, h2, ws). No QUIC.
-/// The QUIC endpoint lives on the dedicated multi-thread runtime spawned in main.
-fn run_worker(idx: usize, inputs: WorkerInputs) {
-    let WorkerInputs {
-        shared,
-        static_files,
-        cert,
-        key,
-        swansong,
-        tls_port,
-        workers,
-    } = inputs;
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("build current_thread runtime");
-
-    rt.block_on(async move {
-        let state = Arc::new(AppState {
-            dataset: shared.dataset.clone(),
-            crud_cache: shared.crud_cache.clone(),
-            pg: build_pg_pool(workers),
-        });
-
-        let l8080 = bind_reuseport(8080).expect("bind 8080");
-        log::info!("worker {idx}: bound 8080");
-
-        trillium_tokio::config()
-            .with_prebound_server(l8080)
-            .with_swansong(swansong.clone())
-            .without_signals()
-            .with_nodelay()
-            .with_http_config(tuned_http_config())
-            .with_shared_state(state.clone())
-            .spawn(build_handler(static_files.clone()));
-
-        if let (Some(cert), Some(key)) = (cert.as_deref(), key.as_deref()) {
-            let l8081 = bind_reuseport(8081).expect("bind 8081");
-            trillium_tokio::config()
-                .with_prebound_server(l8081)
-                .with_swansong(swansong.clone())
-                .without_signals()
-                .with_nodelay()
-                .with_http_config(tuned_http_config())
-                .with_shared_state(state.clone())
-                .with_acceptor(RustlsAcceptor::from_single_cert_no_h2(cert, key))
-                .spawn(build_handler(static_files.clone()));
-
-            let l_tls = bind_reuseport(tls_port).expect("bind TLS port");
-            trillium_tokio::config()
-                .with_prebound_server(l_tls)
-                .with_swansong(swansong.clone())
-                .without_signals()
-                .with_nodelay()
-                .with_http_config(tuned_http_config())
-                .with_shared_state(state.clone())
-                .with_acceptor(RustlsAcceptor::from_single_cert(cert, key))
-                .spawn(build_handler(static_files.clone()));
-        } else if idx == 0 {
-            log::warn!("TLS cert/key not found; only port 8080 is listening");
-        }
-
-        swansong.await;
-    });
-}
-
-struct QuicRuntimeInputs {
-    shared: SharedState,
-    static_files: StaticPreload,
-    cert: Vec<u8>,
-    key: Vec<u8>,
-    swansong: swansong::Swansong,
-    tls_port: u16,
-    n_threads: usize,
-    workers: usize,
-}
-
-/// Dedicated multi-thread runtime that owns the QUIC endpoint and joins the TCP reuseport
-/// pool on all three ports as one additional listener. h3 stream tasks spawned by quinn's
-/// accept loop spread across all `n_threads` threads via tokio's work-stealing scheduler;
-/// TCP traffic on this runtime is the kernel's reuseport share (1 of N+1 sockets per port),
-/// so the per-worker current_thread runtimes still absorb the bulk of TCP work and keep
-/// their per-core hot-cache benefit.
-fn run_quic_runtime(inputs: QuicRuntimeInputs) {
-    let QuicRuntimeInputs {
-        shared,
-        static_files,
-        cert,
-        key,
-        swansong,
-        tls_port,
-        n_threads,
-        workers,
-    } = inputs;
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(n_threads)
-        .enable_all()
-        .thread_name("quic-mt")
-        .build()
-        .expect("build quic multi_thread runtime");
-
-    rt.block_on(async move {
-        let state = Arc::new(AppState {
-            dataset: shared.dataset.clone(),
-            crud_cache: shared.crud_cache.clone(),
-            pg: build_pg_pool(workers),
-        });
-
-        let l8080 = bind_reuseport(8080).expect("bind 8080 on quic runtime");
-        trillium_tokio::config()
-            .with_prebound_server(l8080)
-            .with_swansong(swansong.clone())
-            .without_signals()
-            .with_nodelay()
-            .with_http_config(tuned_http_config())
-            .with_shared_state(state.clone())
-            .spawn(build_handler(static_files.clone()));
-
-        let l8081 = bind_reuseport(8081).expect("bind 8081 on quic runtime");
-        trillium_tokio::config()
-            .with_prebound_server(l8081)
-            .with_swansong(swansong.clone())
-            .without_signals()
-            .with_nodelay()
-            .with_http_config(tuned_http_config())
-            .with_shared_state(state.clone())
-            .with_acceptor(RustlsAcceptor::from_single_cert_no_h2(&cert, &key))
-            .spawn(build_handler(static_files.clone()));
-
-        let l_tls = bind_reuseport(tls_port).expect("bind TLS port on quic runtime");
-        trillium_tokio::config()
-            .with_prebound_server(l_tls)
-            .with_swansong(swansong.clone())
-            .without_signals()
-            .with_nodelay()
-            .with_http_config(tuned_http_config())
-            .with_shared_state(state.clone())
-            .with_acceptor(RustlsAcceptor::from_single_cert(&cert, &key))
-            .with_quic(QuicConfig::from_single_cert(&cert, &key))
-            .spawn(build_handler(static_files.clone()));
-
-        log::info!("quic-mt runtime: TCP reuseport 8080/8081/{tls_port} + QUIC on {tls_port} ({n_threads} threads)");
-
-        swansong.await;
-    });
-}
-
 fn main() {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
@@ -239,85 +78,44 @@ fn main() {
         .unwrap_or_else(num_cpus::get)
         .max(1);
 
-    // Default the QUIC runtime size proportionally to N, capped at 8 (Zen2/3/4 CCX size = 4
-    // physical cores / 8 SMT threads — keeping the MT runtime ≤1 CCX worth keeps h3 work
-    // L3-local and avoids paying the ~70-cycle inter-CCX hop on every steal). Override with
-    // QUIC_THREADS for tuning.
-    //
-    // Empirical 8-core measurements: Q=2 preserves full per-worker TCP performance (≤3% delta)
-    // while doubling h3 capacity over the previous worker-0-only design. Q=8 maximizes h3 (~4
-    // cores' worth) at a 12-17% TCP cost. The proportional default lands users near the Q=2
-    // point on small boxes and the Q=8 point on the bench machine (32 phys / 64 SMT cores).
-    let quic_threads: usize = std::env::var("QUIC_THREADS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| (n_workers / 4).max(2).min(8))
-        .max(1);
+    // ONE shared pool, dropped into shared state (init-once). The reuseport workers all draw from
+    // it; the per-worker pool the hand-rolled topology used is unnecessary — a connection's I/O
+    // driver task is woken by its socket's reactor on whichever worker runtime created it,
+    // regardless of which worker checks the connection out (verified 2026-05-29). The shared pool
+    // is also slightly faster (a busy worker can borrow idle capacity).
+    let state = Arc::new(AppState {
+        dataset: shared.dataset.clone(),
+        crud_cache: shared.crud_cache.clone(),
+        pg: build_pg_pool(),
+    });
 
-    let swansong = swansong::Swansong::new();
+    // The whole topology in one builder: 8080 plaintext + 8081 TLS(no-h2) + 8443 TLS(h2) all fanned
+    // across per-core worker threads via SO_REUSEPORT, plus a single QUIC/h3 endpoint on 8443 bound
+    // once on the shared multi-threaded runtime (which also owns init, signals, and app spawns).
+    // alt-svc h3=":8443" auto-pairs from the same-port 8443 TCP+QUIC binds.
+    let mut builder = server()
+        .with_nodelay()
+        .with_http_config(tuned_http_config())
+        .with_shared_state(state)
+        .with_reuseport_workers(n_workers)
+        .bind_reuseport_tcp(8080)
+        .expect("bind 8080");
 
-    {
-        let swansong = swansong.clone();
-        std::thread::Builder::new()
-            .name("signals".into())
-            .spawn(move || {
-                let mut signals = signal_hook::iterator::Signals::new([
-                    signal_hook::consts::SIGINT,
-                    signal_hook::consts::SIGTERM,
-                ])
-                .expect("install signal handler");
-                if signals.forever().next().is_some() {
-                    log::info!("shutdown signal received");
-                    swansong.shut_down();
-                }
-            })
-            .expect("spawn signal thread");
+    if let (Some(cert), Some(key)) = (cert.as_deref(), key.as_deref()) {
+        builder = builder
+            .bind_reuseport_tls(8081, RustlsAcceptor::from_single_cert_no_h2(cert, key))
+            .expect("bind 8081")
+            .bind_reuseport_tls(tls_port, RustlsAcceptor::from_single_cert(cert, key))
+            .expect("bind TLS port")
+            .bind_quic(tls_port, QuicConfig::from_single_cert(cert, key))
+            .expect("bind QUIC");
+    } else {
+        log::warn!("TLS cert/key not found; only port 8080 is listening");
     }
 
     log::info!(
-        "starting {n_workers} per-worker current_thread workers (TCP) + 1 quic-mt runtime ({quic_threads} threads)"
+        "starting trillium-tuned via server(): {n_workers} reuseport worker(s) + shared runtime for h3"
     );
 
-    let mut handles = Vec::with_capacity(n_workers + 1);
-
-    for idx in 0..n_workers {
-        let inputs = WorkerInputs {
-            shared: shared.clone(),
-            static_files: static_files.clone(),
-            cert: cert.clone(),
-            key: key.clone(),
-            swansong: swansong.clone(),
-            tls_port,
-            workers: n_workers,
-        };
-        handles.push(
-            std::thread::Builder::new()
-                .name(format!("worker-{idx}"))
-                .spawn(move || run_worker(idx, inputs))
-                .expect("spawn worker thread"),
-        );
-    }
-
-    if let (Some(cert), Some(key)) = (cert.clone(), key.clone()) {
-        let inputs = QuicRuntimeInputs {
-            shared: shared.clone(),
-            static_files: static_files.clone(),
-            cert,
-            key,
-            swansong: swansong.clone(),
-            tls_port,
-            n_threads: quic_threads,
-            workers: n_workers,
-        };
-        handles.push(
-            std::thread::Builder::new()
-                .name("quic-mt-driver".into())
-                .spawn(move || run_quic_runtime(inputs))
-                .expect("spawn quic-mt driver thread"),
-        );
-    }
-
-    for h in handles {
-        h.join().expect("worker join");
-    }
+    builder.run(build_handler(static_files));
 }

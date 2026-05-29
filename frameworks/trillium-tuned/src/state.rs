@@ -27,11 +27,12 @@ pub struct Rating {
 
 /// State each handler reads from `conn.shared_state`.
 ///
-/// `dataset` and `crud_cache` are `Arc`-wrapped so workers share them (cross-worker cache hits
-/// satisfy the CRUD spec's "in-process cache" rule). `pg` is per-worker — its connections, and
-/// the tokio_postgres driver tasks behind them, live on whichever worker's `current_thread`
-/// runtime created the pool. Sharing one pool across runtimes would risk getting a connection
-/// driven by another runtime back from `pool.get()`.
+/// All fields are shared across every reuseport worker via `server().with_shared_state` (one
+/// init). `dataset` and `crud_cache` are `Arc`-wrapped (cross-worker cache hits satisfy the CRUD
+/// spec's "in-process cache" rule). `pg` is one shared pool: connections are created lazily on
+/// whichever worker runtime first grows the pool and are safely reused from any worker, because
+/// each `current_thread` runtime drives its own reactor so a connection's driver task is woken by
+/// socket readiness no matter which worker holds it.
 pub struct AppState {
     pub dataset: Arc<Vec<Item>>,
     pub crud_cache: Arc<DashMap<i32, CacheEntry>>,
@@ -67,11 +68,14 @@ impl SharedState {
     }
 }
 
-/// Build the per-worker postgres pool. Returns `None` when `DATABASE_URL` is unset.
+/// Build the single shared postgres pool. Returns `None` when `DATABASE_URL` is unset.
 ///
-/// Must be called from inside the worker's tokio runtime so the connections, when first
-/// established, register their I/O resources with that runtime's reactor.
-pub fn build_pg_pool(workers: usize) -> Option<Pool> {
+/// One pool is shared across every reuseport worker (init-once via `with_shared_state`).
+/// Connections are created lazily on whichever worker runtime first grows the pool; reusing them
+/// from other workers is safe because each `current_thread` worker runtime drives its own I/O
+/// reactor, so a connection's driver task is woken by socket readiness regardless of which worker
+/// checks it out (verified 2026-05-29 — the earlier per-worker design was cautionary).
+pub fn build_pg_pool() -> Option<Pool> {
     let url = std::env::var("DATABASE_URL").ok()?;
     let mut cfg = PgConfig::new();
     cfg.url = Some(url);
@@ -82,7 +86,6 @@ pub fn build_pg_pool(workers: usize) -> Option<Pool> {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(256);
-    let per_worker = (total / workers.max(1)).max(2);
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(per_worker));
+    cfg.pool = Some(deadpool_postgres::PoolConfig::new(total));
     cfg.create_pool(Some(Runtime::Tokio1), NoTls).ok()
 }
